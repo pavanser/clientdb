@@ -1,24 +1,14 @@
 ### CLIENT DB
 
+#### Instalation
+
 This package gives you possibility to create your own client database and work with it.
-All what you need, create new instance of this and use it throw your app.
+All what yHERE.createCollection('some_collection_name');
 
-```js
-import ClientDB from 'clientdb';
-
-const YOUR_DB_NAME_HERE = new ClientDB();
 ```
-
-Then you need to create collection of data:
-
-```js
-YOUR_DB_NAME_HERE.createCollection('some_collection_name');
-```
-
-If by some reason you will need to remove it use:
-
-```js
-YOUR_DB_NAME_HERE.createCollection('some_collection_name');
+ npm i @pavanser/clientdb 
+ // or
+ yarn add @pavanser/clientdb
 ```
 
 #### Collections:
@@ -98,7 +88,7 @@ These methods are start of chain. But if you want to finish it use `exec()`. It 
 
 ```js
 YOUR_DB_NAME_HERE.some_collection_name.getAll().exec().then( data => { /** ... */ } );
-YOUR_DB_NAME_HERE.some_collection_name.where({ 'filter options here' }).exec().then( data => { /** ... */ } );
+YOUR_DB_NAME_HERE.some_collection_name.where({ /** filter options here */ }).exec().then( data => { /** ... */ } );
 ```
 
 #### Collection chain's
@@ -108,3 +98,21 @@ Between `getAll` and `exec` could be used chain methods:
 - sort - this method is sorting data by fields at the array. At the second argument ( this is optional ) you could describe direction of sorting `desc` or `asc` for fields one by one;
 - limit - this method will return only number of arguments according with a didgit at the arguments.
 - offset - this is helper for `limit` method and it takes in argument from where limit should count elements. It should be executed before `limit`.
+
+```js
+YOUR_DB_NAME_HERE
+  .some_collection_name
+  .getAll()
+  .sort('name') // Will be sorted by name field
+   .limit(9) // Will be take 9 items from 0
+  .then( data => { /** ... */ } );
+
+YOUR_DB_NAME_HERE
+  .some_collection_name
+  .where({ /** filter options here */ })
+  .offset(9) // start index for limit is 8
+  .sort('name') // Will be sorted by name field
+  .limit(9) // Will be take 9 items from 8th
+  .exec()
+  .then( data => { /** ... */ } );
+```
