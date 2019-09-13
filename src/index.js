@@ -14,7 +14,7 @@ class ClientDB {
   }
 }
 
-export const Werkin = new ClientDB();
+export default ClientDB;
 
 
 
