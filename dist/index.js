@@ -23,4 +23,4 @@ class ClientDB {
 
 var _db = new WeakMap();
 
-export const Werkin = new ClientDB();
+export default ClientDB;
