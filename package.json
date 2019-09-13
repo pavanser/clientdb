@@ -1,6 +1,6 @@
 {
-  "name": "clientdb",
-  "version": "1.0.1",
+  "name": "@pavanser/clientdb",
+  "version": "1.0.2",
   "license": "MIT",
   "main": "dist/index.js",
   "scripts": {
