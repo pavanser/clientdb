@@ -1,0 +1,8 @@
+{
+  "name": "clientdb",
+  "version": "1.0.0",
+  "dependencies": {
+    "babel": "^6.23.0",
+    "lodash": "^4.17.15"
+  }
+}
