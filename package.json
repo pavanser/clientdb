@@ -1,10 +1,13 @@
 {
-  "name": "@pavanser/clientdb",
+  "name": "@werkin/clientdb",
   "version": "0.0.1",
   "license": "MIT",
   "main": "dist/index.js",
   "scripts": {
     "build": "babel src --out-dir dist"
+  },
+  "repository": {
+    "url": "https://pavel-kgdev@bitbucket.org/pavel-kgdev/werkin-clientdb.git"
   },
   "devDependencies": {
     "@babel/cli": "^7.6.0",
