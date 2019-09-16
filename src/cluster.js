@@ -22,7 +22,7 @@ class Cluster {
   }
 
   exec(){
-    return Promise.resolve(this.data);
+    return this.data;
   }
 }
 
