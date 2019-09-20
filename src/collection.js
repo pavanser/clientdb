@@ -2,6 +2,8 @@ import intersectionWith from 'lodash/intersectionWith';
 import filter from 'lodash/filter';
 import isEqual from 'lodash/isEqual';
 import find from 'lodash/find';
+import remove from 'lodash/remove';
+import cloneDeep from 'lodash/cloneDeep';
 import uniqWith from 'lodash/uniqWith';
 import Cluster from './cluster';
 
@@ -60,6 +62,14 @@ class Collection {
     return new Cluster(this.docs);
   }
 
+  getOne(options) {
+    const docs = filter(this.docs, options);
+  }
+
+  getOneById(id) {
+    return find(this.docs, { id })
+  }
+
   where(options) {
     const docs = filter(this.docs, options);
 
@@ -73,7 +83,7 @@ class Collection {
       throw new Error('Current object is not in this collection');
     }
 
-    const uniqData = uniqWith([...this.docs, field]);
+    const uniqData = uniqWith([...cloneDeep(this.docs), field]);
     const updatedField = { ...field, ...data};
 
     this.docs = [...uniqData, updatedField];
@@ -120,6 +130,20 @@ class Collection {
     });
 
     return { docs: this.docs };
+  }
+
+  delete(id) {
+    const removed = remove(this.docs, doc => {
+      if (!doc.id) return false;
+
+      return doc.id === id
+    });
+
+    return {
+      status: !!removed ? 'success' : `Not found doc with id ${id}`,
+      removed,
+      docs: this.docs
+    }
   }
 
   subscribe(cb) {

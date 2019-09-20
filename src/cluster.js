@@ -1,8 +1,9 @@
 import orderBy from 'lodash/orderBy';
+import cloneDeep from 'lodash/cloneDeep';
 
 class Cluster {
   constructor(data) {
-    this.data = data;
+    this.data = cloneDeep(data);
     this.start_index = 0;
   }
 
