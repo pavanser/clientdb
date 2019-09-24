@@ -18,11 +18,44 @@ class Collection {
       value: void 0
     });
 
+    _emitListener.set(this, {
+      writable: true,
+      value: void 0
+    });
+
+    _triggerListeners.set(this, {
+      writable: true,
+      value: void 0
+    });
+
     this.name = options.name;
     this.docs = [];
     this.schema = options.schema;
 
-    _classPrivateFieldSet(this, _listeners, []);
+    _classPrivateFieldSet(this, _listeners, {});
+
+    _classPrivateFieldSet(this, _emitListener, (updated_data, {
+      next,
+      options
+    }) => {
+      const all_docs = options && options.clustered_all ? new Cluster(this.docs) : this.docs;
+      const updated = options && options.clustered_updated ? new Cluster(updated_data) : updated_data;
+      next({
+        all_docs,
+        updated
+      });
+    });
+
+    _classPrivateFieldSet(this, _triggerListeners, (updated_data, keys) => {
+      keys = keys || Object.keys(_classPrivateFieldGet(this, _listeners));
+      keys.forEach(key => {
+        if (!_classPrivateFieldGet(this, _listeners)[key]) return;
+
+        _classPrivateFieldGet(this, _listeners)[key].forEach(config => {
+          _classPrivateFieldGet(this, _emitListener).call(this, updated_data, config);
+        });
+      });
+    });
   }
 
   add(data) {
@@ -56,9 +89,7 @@ class Collection {
       };
     }
 
-    _classPrivateFieldGet(this, _listeners).forEach(listener => {
-      listener(this.docs);
-    });
+    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
 
     return {
       docs: this.docs,
@@ -71,10 +102,14 @@ class Collection {
   }
 
   getOne(options) {
-    const docs = filter(this.docs, options);
+    return find(cloneDeep(this.docs), options);
   }
 
-  getOneById(id) {
+  getFirst() {
+    return this.docs[1];
+  }
+
+  getById(id) {
     return find(this.docs, {
       id
     });
@@ -98,9 +133,7 @@ class Collection {
     };
     this.docs = [...docs, updatedField];
 
-    _classPrivateFieldGet(this, _listeners).forEach(listener => {
-      listener(this.docs);
-    });
+    _classPrivateFieldGet(this, _triggerListeners).call(this, data, Object.keys(data));
 
     return {
       docs: this.docs,
@@ -114,9 +147,7 @@ class Collection {
       data
     }));
 
-    _classPrivateFieldGet(this, _listeners).forEach(listener => {
-      listener(this.docs);
-    });
+    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
 
     return {
       docs: this.docs,
@@ -124,37 +155,36 @@ class Collection {
     };
   }
 
-  upsert(data) {
-    const unique_data = uniqWith([...this.docs, data], isEqual);
-    this.docs = [...unique_data, data];
+  upsert(item) {
+    const docs = this.docs.filter(doc => doc.id !== item.id);
+    this.docs = [...docs, item];
 
-    _classPrivateFieldGet(this, _listeners).forEach(listener => {
-      listener(this.docs);
-    });
+    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
 
     return {
-      docs: this.docs
+      docs: this.docs,
+      upserted: item
     };
   }
 
-  bulkUpsert(data) {
-    const unique_data = uniqWith([...this.docs, ...data], isEqual);
-    this.docs = [...unique_data, data];
+  bulkUpsert(items) {
+    const itemIds = items.map(item => item.id);
+    const docs = this.docs.filter(doc => !itemIds.includes(doc.id));
+    this.docs = [...docs, ...items];
 
-    _classPrivateFieldGet(this, _listeners).forEach(listener => {
-      listener(this.docs);
-    });
+    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
 
     return {
-      docs: this.docs
+      docs: this.docs,
+      upserted: items
     };
   }
 
   delete(id) {
-    const removed = remove(this.docs, doc => {
-      if (!doc.id) return false;
-      return doc.id === id;
-    });
+    const removed = remove(this.docs, doc => doc.id === id);
+
+    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
+
     return {
       status: !!removed ? 'success' : `Not found doc with id ${id}`,
       removed,
@@ -162,16 +192,40 @@ class Collection {
     };
   }
 
-  subscribe(cb) {
-    _classPrivateFieldGet(this, _listeners).push(cb);
+  subscribe({
+    next,
+    keys,
+    options
+  }) {
+    if (!next) {
+      throw new Error(`Callback is required for subscription function. Please add 'next' function property to subscription configuration.`);
+    }
+
+    const config = {
+      next,
+      options
+    };
+    keys.forEach(key => {
+      _classPrivateFieldGet(this, _listeners)[key] = _classPrivateFieldGet(this, _listeners)[key] || new Set([]);
+
+      _classPrivateFieldGet(this, _listeners)[key].add(config);
+    });
+
+    _classPrivateFieldGet(this, _emitListener).call(this, this.docs, config);
 
     return () => {
-      _classPrivateFieldGet(this, _listeners).delete(cb);
+      keys.forEach(key => {
+        _classPrivateFieldGet(this, _listeners)[key].delete(config);
+      });
     };
   }
 
 }
 
 var _listeners = new WeakMap();
+
+var _emitListener = new WeakMap();
+
+var _triggerListeners = new WeakMap();
 
 export default Collection;

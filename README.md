@@ -70,8 +70,10 @@ YOUR_DB_NAME_HERE.some_collection_name.upsert('object_here');
 ```
 Return:
 ```js
-
-{ docs: ['docs_with_new data_data'] }
+{
+  docs: this.docs,
+  upserted: /** Added or updated data */
+ }
 ```
 
 ```js
@@ -82,14 +84,14 @@ Both methods will return:
 
 { 
   docs: ['docs_with_updated_data'],
-  status: 'success'
+  upserted:  /** Added or updated data */
 }
 ```
 
 Data from collections could be get by 2 methods.
 
 ```js
-YOUR_DB_NAME_HERE.some_collection_name.getAll();
+YOUR_DB_NAME_HERE.some_collection_name.getAll().exec();
 YOUR_DB_NAME_HERE.some_collection_name.where({ 'filter options here' });
 ```
 These methods are start of chain. But if you want to finish it use `exec()`. It will return Promise with data.
@@ -98,6 +100,43 @@ These methods are start of chain. But if you want to finish it use `exec()`. It 
 YOUR_DB_NAME_HERE.some_collection_name.getAll().exec().then( data => { /** ... */ } );
 YOUR_DB_NAME_HERE.some_collection_name.where({ /** filter options here */ }).exec().then( data => { /** ... */ } );
 ```
+
+In some cases you need to get first element of collection, for this you could use
+```js
+YOUR_DB_NAME_HERE.some_collection_name.getFirst();
+```
+
+In some cases you want to get one doc by id or by some fields:
+```js
+YOUR_DB_NAME_HERE.some_collection_name.getById(/** doc id */);
+YOUR_DB_NAME_HERE.some_collection_name.getOne({ title: 'foo', desc: 'bar' });
+```
+These methods will return you first matches at your collection.
+
+#### Subscriptions
+You can subscribe on changes at the collection by fields. If some field will be changed,
+listeners who listen this filed update will be triggered. for one listener could be set 
+unlimited list of fields.
+
+```js
+YOUR_DB_NAME_HERE
+.some_collection_name
+.subscribe({
+  next:({ all_docs: [], updated: [] }) => { /** doc id */ },
+  keys: ['title', 'desc'],
+  options: {}
+});
+```
+
+When you subscribe, it will be triggered and return you arrays with docs.
+
+Also subscription could get options `clustered_updated` and `clustered_all`, they are boolean
+and `false` by default.
+
+- `clustered_updated` - if `false` will just return array of updated items. If true then this items will be wrapped at
+the cluster, which you can sort offset or limit; Then you will need to execute it by `exec()`;
+
+- `clustered_all` - same as with `clustered_updated` but with all docs.
 
 #### Collection chain's
 
