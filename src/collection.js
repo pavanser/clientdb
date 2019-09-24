@@ -151,7 +151,7 @@ class Collection {
 
   delete(id) {
     const removed = remove(this.docs, doc => doc.id === id);
-    this.#triggerListeners(data);
+    this.#triggerListeners(this.docs);
 
     return {
       status: !!removed ? 'success' : `Not found doc with id ${id}`,

@@ -181,7 +181,7 @@ class Collection {
   delete(id) {
     const removed = remove(this.docs, doc => doc.id === id);
 
-    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
+    _classPrivateFieldGet(this, _triggerListeners).call(this, this.docs);
 
     return {
       status: !!removed ? 'success' : `Not found doc with id ${id}`,
