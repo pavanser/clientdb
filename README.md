@@ -53,7 +53,15 @@ For updating use:
     YOUR_DB_NAME_HERE.some_collection_name.bulkUpdate('array_here');
 ```
 
-Responses will be same as during creation but with corrected error messages.
+Response for update:
+
+```js
+{
+  docs: [/** docs_with_updated_data */],
+  updated: {/** Updated field */},
+  old: {/** Field before update */},
+}
+```
 
 Sometimes you need add some data and update existed data, but not remove else data. For this you can use:
 

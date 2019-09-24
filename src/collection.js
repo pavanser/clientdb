@@ -83,16 +83,20 @@ class Collection {
       throw new Error('Current object is not in this collection');
     }
 
-    const uniqData = uniqWith([...cloneDeep(this.docs), field]);
+    const docs = this.docs.filter(doc => doc.id !== field.id);
     const updatedField = { ...field, ...data};
 
-    this.docs = [...uniqData, updatedField];
+    this.docs = [...docs, updatedField];
 
     this.#listeners.forEach(listener => {
       listener(this.docs);
     });
 
-    return { docs: this.docs };
+    return {
+      docs: this.docs,
+      updated: updatedField,
+      old: field
+    };
   }
 
   bulkUpdate(data) {
