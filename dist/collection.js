@@ -47,8 +47,8 @@ class Collection {
     });
 
     _classPrivateFieldSet(this, _triggerListeners, (updated_data, keys) => {
-      keys = keys || Object.keys(_classPrivateFieldGet(this, _listeners));
-      keys.forEach(key => {
+      const listenerKeys = keys || Object.keys(_classPrivateFieldGet(this, _listeners));
+      listenerKeys.forEach(key => {
         if (!_classPrivateFieldGet(this, _listeners)[key]) return;
 
         _classPrivateFieldGet(this, _listeners)[key].forEach(config => {
@@ -67,9 +67,7 @@ class Collection {
 
     this.docs = [...this.docs, data];
 
-    _classPrivateFieldGet(this, _listeners).forEach(listener => {
-      listener(this.docs);
-    });
+    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
 
     return {
       docs: this.docs
@@ -81,6 +79,8 @@ class Collection {
     data = uniqWith([...intersected, ...data]);
     this.docs = [...this.docs, ...data];
 
+    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
+
     if (intersected.length) {
       return {
         docs: this.docs,
@@ -88,8 +88,6 @@ class Collection {
         warning: 'Some data was not added because it is already in collection'
       };
     }
-
-    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
 
     return {
       docs: this.docs,
@@ -159,7 +157,7 @@ class Collection {
     const docs = this.docs.filter(doc => doc.id !== item.id);
     this.docs = [...docs, item];
 
-    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
+    _classPrivateFieldGet(this, _triggerListeners).call(this, item);
 
     return {
       docs: this.docs,
@@ -172,7 +170,7 @@ class Collection {
     const docs = this.docs.filter(doc => !itemIds.includes(doc.id));
     this.docs = [...docs, ...items];
 
-    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
+    _classPrivateFieldGet(this, _triggerListeners).call(this, items);
 
     return {
       docs: this.docs,

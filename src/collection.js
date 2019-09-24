@@ -27,9 +27,9 @@ class Collection {
     };
 
     this.#triggerListeners = (updated_data, keys) => {
-      keys = keys || Object.keys(this.#listeners);
+      const listenerKeys = keys || Object.keys(this.#listeners);
 
-      keys.forEach(key => {
+      listenerKeys.forEach(key => {
         if (!this.#listeners[key]) return;
 
         this.#listeners[key].forEach((config) => { this.#emitListener(updated_data, config) })
@@ -45,9 +45,7 @@ class Collection {
     }
 
     this.docs = [...this.docs, data];
-    this.#listeners.forEach(listener => {
-      listener(this.docs);
-    });
+    this.#triggerListeners(data);
 
     return { docs: this.docs };
   }
@@ -58,6 +56,7 @@ class Collection {
     data = uniqWith([...intersected, ...data]);
 
     this.docs = [...this.docs, ...data];
+    this.#triggerListeners(data);
 
     if (intersected.length) {
       return {
@@ -66,8 +65,6 @@ class Collection {
         warning: 'Some data was not added because it is already in collection'
       };
     }
-
-    this.#triggerListeners(data);
 
     return {
       docs: this.docs,
@@ -131,7 +128,7 @@ class Collection {
     const docs = this.docs.filter(doc => doc.id !== item.id);
 
     this.docs = [...docs, item];
-    this.#triggerListeners(data);
+    this.#triggerListeners(item);
 
     return {
       docs: this.docs,
@@ -144,7 +141,7 @@ class Collection {
     const docs = this.docs.filter(doc => !itemIds.includes(doc.id));
 
     this.docs = [...docs, ...items];
-    this.#triggerListeners(data);
+    this.#triggerListeners(items);
 
     return {
       docs: this.docs,
