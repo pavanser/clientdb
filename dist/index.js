@@ -1,15 +1,22 @@
-import Collection from './collection';
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+
+var _collection = _interopRequireDefault(require("./collection"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 class ClientDB {
-  constructor() {
-    _db.set(this, {
-      writable: true,
-      value: void 0
-    });
-  }
-
   createCollection(name) {
-    this[name] = new Collection({
+    if (!name) {
+      var msg = 'Name is required for collection. Please set name of collection as argument.';
+      throw new Error(msg);
+    }
+
+    this[name] = new _collection.default({
       name
     });
     return this[name];
@@ -21,6 +28,5 @@ class ClientDB {
 
 }
 
-var _db = new WeakMap();
-
-export default ClientDB;
+var _default = ClientDB;
+exports.default = _default;

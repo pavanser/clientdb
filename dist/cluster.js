@@ -1,14 +1,24 @@
-import orderBy from 'lodash/orderBy';
-import cloneDeep from 'lodash/cloneDeep';
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+
+var _orderBy = _interopRequireDefault(require("lodash/orderBy"));
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 class Cluster {
   constructor(data) {
-    this.data = cloneDeep(data);
+    this.data = (0, _cloneDeep.default)(data);
     this.start_index = 0;
   }
 
   sort(fields, directions) {
-    this.data = orderBy(this.data, fields, directions);
+    this.data = (0, _orderBy.default)(this.data, fields, directions);
     return this;
   }
 
@@ -28,4 +38,5 @@ class Cluster {
 
 }
 
-export default Cluster;
+var _default = Cluster;
+exports.default = _default;

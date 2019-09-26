@@ -1,9 +1,13 @@
 import Collection from './collection';
 
 class ClientDB {
-  #db;
-
   createCollection(name) {
+    if (!name) {
+      const msg = 'Name is required for collection. Please set name of collection as argument.';
+
+      throw new Error(msg)
+    }
+
     this[name] = new Collection({ name });
 
     return this[name];

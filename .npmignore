@@ -1,3 +1,7 @@
-src
 .idea
+src
 node_modules
+coverage
+.babelrc
+tests
+yarn.lock

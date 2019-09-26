@@ -1,11 +1,12 @@
-import intersectionWith from 'lodash/intersectionWith';
-import filter from 'lodash/filter';
-import isEqual from 'lodash/isEqual';
-import find from 'lodash/find';
-import remove from 'lodash/remove';
-import cloneDeep from 'lodash/cloneDeep';
-import uniqWith from 'lodash/uniqWith';
 import Cluster from './cluster';
+
+import _intersectionWith from 'lodash/intersectionWith';
+import _filter from 'lodash/filter';
+import _isEqual from 'lodash/isEqual';
+import _find from 'lodash/find';
+import _cloneDeep from 'lodash/cloneDeep';
+import _remove from 'lodash/remove';
+import _differenceBy from 'lodash/differenceBy';
 
 class Collection {
   #listeners;
@@ -19,56 +20,48 @@ class Collection {
 
     this.#listeners = {};
 
-    this.#emitListener = (updated_data, {next, options}) => {
+    this.#emitListener = (updated_data, {next, options}, action) => {
       const all_docs = options && options.clustered_all ? new Cluster(this.docs) : this.docs;
-      const updated = options && options.clustered_updated ? new Cluster(updated_data) : updated_data;
+      const changes = options && options.clustered_updated ? new Cluster(updated_data) : updated_data;
 
-      next({ all_docs, updated })
+      next({ all_docs, changes, action })
     };
 
-    this.#triggerListeners = (updated_data, keys) => {
+    this.#triggerListeners = (updated_data, action, keys) => {
       const listenerKeys = keys || Object.keys(this.#listeners);
 
       listenerKeys.forEach(key => {
         if (!this.#listeners[key]) return;
 
-        this.#listeners[key].forEach((config) => { this.#emitListener(updated_data, config) })
+        this.#listeners[key].forEach((config) => { this.#emitListener(updated_data, config, action) })
       });
     }
   }
 
   add(data){
-    const intersected = intersectionWith(this.docs, [data], isEqual);
+    const intersected = _intersectionWith(this.docs, [data], _isEqual);
 
     if (intersected.length) {
       throw new Error('Current object already present in this collection');
     }
 
     this.docs = [...this.docs, data];
-    this.#triggerListeners(data);
+    this.#triggerListeners(data, 'added');
 
-    return { docs: this.docs };
+    return { all_docs: this.docs, status: "success", added: data };
   }
 
   bulkAdd(data) {
-    const intersected = intersectionWith(this.docs, [data], isEqual);
+    const intersected = _intersectionWith(this.docs, data, _isEqual);
+    const uniq_data = _differenceBy(data, intersected, 'id');
 
-    data = uniqWith([...intersected, ...data]);
-
-    this.docs = [...this.docs, ...data];
-    this.#triggerListeners(data);
-
-    if (intersected.length) {
-      return {
-        docs: this.docs,
-        status: 'added with warnings',
-        warning: 'Some data was not added because it is already in collection'
-      };
-    }
+    this.docs = [...this.docs, ...uniq_data];
+    this.#triggerListeners(uniq_data, 'bulk added');
 
     return {
-      docs: this.docs,
-      status: 'success'
+      all_docs: this.docs,
+      added: uniq_data,
+      status: uniq_data.length !== data.length ? 'added with warnings' : 'success'
     };
   }
 
@@ -77,31 +70,31 @@ class Collection {
   }
 
   getOne(options) {
-    return find(cloneDeep(this.docs), options)
+    return _find(this.docs, options)
   }
 
   getFirst() {
-    return this.docs[1]
+    return this.docs[0]
   }
 
   getById(id) {
-    return find(this.docs, { id })
+    return _find(this.docs, { id })
   }
 
   where(options) {
-    const docs = filter(this.docs, options);
+    const docs = _filter(this.docs, options);
 
     return new Cluster(docs, options);
   }
 
   update(query, data) {
-    const field = find(this.docs, query);
+    const field = _find(this.docs, query);
 
     if (!field) {
       throw new Error('Current object is not in this collection');
     }
 
-    const docs = this.docs.filter(doc => doc.id !== field.id);
+    const docs =_filter( this.docs, doc => doc.id !== field.id);
     const updatedField = { ...field, ...data};
 
     this.docs = [...docs, updatedField];
@@ -125,7 +118,7 @@ class Collection {
   }
 
   upsert(item) {
-    const docs = this.docs.filter(doc => doc.id !== item.id);
+    const docs = _filter(this.docs, doc => doc.id !== item.id);
 
     this.docs = [...docs, item];
     this.#triggerListeners(item);
@@ -138,7 +131,7 @@ class Collection {
 
   bulkUpsert(items) {
     const itemIds = items.map(item => item.id);
-    const docs = this.docs.filter(doc => !itemIds.includes(doc.id));
+    const docs = _filter(this.docs,doc => !itemIds.includes(doc.id));
 
     this.docs = [...docs, ...items];
     this.#triggerListeners(items);
@@ -149,20 +142,41 @@ class Collection {
     };
   }
 
-  delete(id) {
-    const removed = remove(this.docs, doc => doc.id === id);
-    this.#triggerListeners(this.docs);
+  delete(...ids) {
+    if (!ids.length) {
+      throw new Error('This method required at least 1 id as argument.')
+    }
+
+    const docs = _cloneDeep(this.docs);
+    const removed = _remove(docs, doc => ids.includes(doc.id));
+    const removedIds = removed.map(doc => doc.id);
+    const notFoundIds = _filter(ids, id => !removedIds.includes(id)).join(', ');
+
+    this.docs = docs;
+
+    removed.length && this.#triggerListeners(removed, 'deleted');
 
     return {
-      status: !!removed ? 'success' : `Not found doc with id ${id}`,
+      status: removed.length === ids.length ? 'success' : `Not found doc with id${notFoundIds.length > 1 ? 's' : ''} ${notFoundIds}`,
       removed,
-      docs: this.docs
+      all_docs: docs
     }
   }
 
-  subscribe({ next, keys, options }) {
-    if (!next) {
-      throw new Error(`Callback is required for subscription function. Please add 'next' function property to subscription configuration.`)
+  subscribe( { next, keys, options }) {
+    if (!next || !keys) {
+      const msg = `Subscribe method is wait for object with required "next" and "keys" properties`;
+      throw new Error(msg)
+    }
+
+    if (!(next instanceof Function)) {
+      const msg = `Next should be a function`;
+      throw new Error(msg)
+    }
+
+    if (!(keys instanceof Array)) {
+      const msg = `Keys should be an array`;
+      throw new Error(msg)
     }
 
     const config = { next, options };
@@ -172,7 +186,7 @@ class Collection {
       this.#listeners[key].add(config);
     });
 
-    this.#emitListener(this.docs, config);
+    this.#emitListener(this.docs, config, 'initialized');
 
     return () => {
       keys.forEach(key => {
