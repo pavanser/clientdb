@@ -17,6 +17,12 @@ var _find2 = _interopRequireDefault(require("lodash/find"));
 
 var _cloneDeep2 = _interopRequireDefault(require("lodash/cloneDeep"));
 
+var _isObjectLike2 = _interopRequireDefault(require("lodash/isObjectLike"));
+
+var _isArray2 = _interopRequireDefault(require("lodash/isArray"));
+
+var _uniq2 = _interopRequireDefault(require("lodash/uniq"));
+
 var _remove2 = _interopRequireDefault(require("lodash/remove"));
 
 var _differenceBy2 = _interopRequireDefault(require("lodash/differenceBy"));
@@ -33,12 +39,36 @@ function _classPrivateFieldGet(receiver, privateMap) { var descriptor = privateM
 
 function _classPrivateFieldSet(receiver, privateMap, value) { var descriptor = privateMap.get(receiver); if (!descriptor) { throw new TypeError("attempted to set private field on non-instance"); } if (descriptor.set) { descriptor.set.call(receiver, value); } else { if (!descriptor.writable) { throw new TypeError("attempted to set read only private field"); } descriptor.value = value; } return value; }
 
+var isArray = docs => {
+  if (!(0, _isArray2.default)(docs)) {
+    throw new Error('Expected array as an argument');
+  }
+};
+
+var isObject = doc => {
+  if (!(0, _isObjectLike2.default)(doc) || (0, _isArray2.default)(doc)) {
+    throw new Error('Expected plain object as an argument');
+  }
+};
+
+var isWithId = doc => {
+  if (!doc.id) {
+    throw new Error('Doc should have "id"');
+  }
+};
+
+var isWithIds = docs => {
+  var withoutIds = (0, _filter2.default)(docs, doc => !doc.id);
+
+  if (withoutIds.length) {
+    var message = "All docs should have \"id\". Please, check next docs: ".concat(JSON.stringify(withoutIds));
+    throw new Error(message);
+  }
+};
+
 class Collection {
   constructor(options) {
-    _listeners.set(this, {
-      writable: true,
-      value: void 0
-    });
+    _defineProperty(this, "_listeners", void 0);
 
     _emitListener.set(this, {
       writable: true,
@@ -53,8 +83,7 @@ class Collection {
     this.name = options.name;
     this.docs = [];
     this.schema = options.schema;
-
-    _classPrivateFieldSet(this, _listeners, {});
+    this._listeners = {};
 
     _classPrivateFieldSet(this, _emitListener, (updated_data, _ref, action) => {
       var {
@@ -71,46 +100,53 @@ class Collection {
     });
 
     _classPrivateFieldSet(this, _triggerListeners, (updated_data, action, keys) => {
-      var listenerKeys = keys || Object.keys(_classPrivateFieldGet(this, _listeners));
+      var listenerKeys = keys || Object.keys(this._listeners);
       listenerKeys.forEach(key => {
-        if (!_classPrivateFieldGet(this, _listeners)[key]) return;
+        if (key === 'id') return;
+        if (!this._listeners[key]) return;
 
-        _classPrivateFieldGet(this, _listeners)[key].forEach(config => {
+        this._listeners[key].forEach(config => {
           _classPrivateFieldGet(this, _emitListener).call(this, updated_data, config, action);
         });
       });
     });
   }
 
-  add(data) {
-    var intersected = (0, _intersectionWith2.default)(this.docs, [data], _isEqual2.default);
+  add(doc) {
+    isObject(doc);
+    isWithId(doc);
+    var intersected = (0, _intersectionWith2.default)(this.docs, [doc], _isEqual2.default);
 
     if (intersected.length) {
       throw new Error('Current object already present in this collection');
     }
 
-    this.docs = [...this.docs, data];
+    this.docs = [...this.docs, doc];
 
-    _classPrivateFieldGet(this, _triggerListeners).call(this, data, 'added');
+    _classPrivateFieldGet(this, _triggerListeners).call(this, [doc], 'added');
 
     return {
       all_docs: this.docs,
       status: "success",
-      added: data
+      added_doc: doc
     };
   }
 
-  bulkAdd(data) {
-    var intersected = (0, _intersectionWith2.default)(this.docs, data, _isEqual2.default);
-    var uniq_data = (0, _differenceBy2.default)(data, intersected, 'id');
-    this.docs = [...this.docs, ...uniq_data];
+  bulkAdd(docs) {
+    isArray(docs);
+    isWithIds(docs);
+    var intersected = (0, _intersectionWith2.default)(this.docs, docs, _isEqual2.default);
+    var uniq_docs = (0, _differenceBy2.default)(docs, intersected, 'id');
+    var keys = [];
+    uniq_docs.forEach(doc => keys.push(...Object.keys(doc)));
+    this.docs = [...this.docs, ...uniq_docs];
 
-    _classPrivateFieldGet(this, _triggerListeners).call(this, uniq_data, 'bulk added');
+    _classPrivateFieldGet(this, _triggerListeners).call(this, uniq_docs, 'bulk added', (0, _uniq2.default)(keys));
 
     return {
       all_docs: this.docs,
-      added: uniq_data,
-      status: uniq_data.length !== data.length ? 'added with warnings' : 'success'
+      added_docs: uniq_docs,
+      status: uniq_docs.length !== docs.length ? 'added with warnings' : 'success'
     };
   }
 
@@ -132,68 +168,94 @@ class Collection {
     });
   }
 
-  where(options) {
-    var docs = (0, _filter2.default)(this.docs, options);
-    return new _cluster.default(docs, options);
+  where(filter) {
+    var docs = (0, _filter2.default)(this.docs, filter);
+    return new _cluster.default(docs, filter);
   }
 
-  update(query, data) {
-    var field = (0, _find2.default)(this.docs, query);
+  update(updated_fields) {
+    isObject(updated_fields);
+    isWithId(updated_fields);
+    var doc = (0, _find2.default)(this.docs, doc => doc.id === updated_fields.id);
 
-    if (!field) {
+    if (!doc) {
       throw new Error('Current object is not in this collection');
     }
 
-    var docs = (0, _filter2.default)(this.docs, doc => doc.id !== field.id);
+    var docs = (0, _filter2.default)(this.docs, d => d.id !== doc.id);
 
-    var updatedField = _objectSpread({}, field, {}, data);
+    var updated_doc = _objectSpread({}, doc, {}, updated_fields);
 
-    this.docs = [...docs, updatedField];
+    this.docs = [...docs, updated_doc];
 
-    _classPrivateFieldGet(this, _triggerListeners).call(this, data, Object.keys(data));
-
-    return {
-      docs: this.docs,
-      updated: updatedField,
-      old: field
-    };
-  }
-
-  bulkUpdate(data) {
-    this.docs = this.docs.map(doc => _objectSpread({}, doc, {
-      data
-    }));
-
-    _classPrivateFieldGet(this, _triggerListeners).call(this, data);
+    _classPrivateFieldGet(this, _triggerListeners).call(this, [updated_doc], 'updated', Object.keys(updated_fields));
 
     return {
-      docs: this.docs,
+      all_docs: this.docs,
+      updated_doc,
+      old_doc: doc,
       status: 'success'
     };
   }
 
-  upsert(item) {
-    var docs = (0, _filter2.default)(this.docs, doc => doc.id !== item.id);
-    this.docs = [...docs, item];
+  bulkUpdate(docs) {
+    isArray(docs);
+    isWithIds(docs);
+    var itemIds = docs.map(item => item.id);
+    var keys = [];
+    var clonedDocs = (0, _cloneDeep2.default)(docs);
+    var docs_for_update = (0, _remove2.default)(this.docs, doc => !itemIds.includes(doc.id));
+    var updated_docs = docs_for_update.map(doc => {
+      var update = (0, _remove2.default)(clonedDocs, d => d.id === doc.id);
+      keys.push(...Object.keys(update));
+      return _objectSpread({}, doc, {}, update);
+    });
+    this.docs = this.docs.map(doc => _objectSpread({}, doc, {
+      docs
+    }));
 
-    _classPrivateFieldGet(this, _triggerListeners).call(this, item);
+    _classPrivateFieldGet(this, _triggerListeners).call(this, updated_docs, 'bulk updated', (0, _uniq2.default)(keys));
 
     return {
-      docs: this.docs,
-      upserted: item
+      all_docs: this.docs,
+      updated_docs: updated_docs,
+      status: 'success'
     };
   }
 
-  bulkUpsert(items) {
-    var itemIds = items.map(item => item.id);
-    var docs = (0, _filter2.default)(this.docs, doc => !itemIds.includes(doc.id));
-    this.docs = [...docs, ...items];
+  upsert(doc) {
+    isObject(doc);
+    isWithId(doc);
+    var initialItem = (0, _find2.default)(this.docs, d => d.id === doc.id);
+    var docs = (0, _filter2.default)(this.docs, d => d.id !== doc.id);
+    this.docs = [...docs, _objectSpread({}, initialItem, {}, doc)];
 
-    _classPrivateFieldGet(this, _triggerListeners).call(this, items);
+    _classPrivateFieldGet(this, _triggerListeners).call(this, [_objectSpread({}, initialItem, {}, doc)], 'added or updated', Object.keys(doc));
 
     return {
-      docs: this.docs,
-      upserted: items
+      all_docs: this.docs,
+      upserted: _objectSpread({}, initialItem, {}, doc),
+      status: 'success'
+    };
+  }
+
+  bulkUpsert(docs) {
+    isArray(docs);
+    isWithIds(docs);
+    var itemIds = docs.map(item => item.id);
+    var keys = [];
+    docs.forEach(item => {
+      keys.push(...Object.keys(item));
+    });
+    var unchanged_docs = (0, _filter2.default)(this.docs, doc => !itemIds.includes(doc.id));
+    this.docs = [...unchanged_docs, ...docs];
+
+    _classPrivateFieldGet(this, _triggerListeners).call(this, docs, 'added or updated', (0, _uniq2.default)(keys));
+
+    return {
+      all_docs: this.docs,
+      upserted: docs,
+      status: 'success'
     };
   }
 
@@ -246,23 +308,21 @@ class Collection {
       options
     };
     keys.forEach(key => {
-      _classPrivateFieldGet(this, _listeners)[key] = _classPrivateFieldGet(this, _listeners)[key] || new Set([]);
+      this._listeners[key] = this._listeners[key] || new Set([]);
 
-      _classPrivateFieldGet(this, _listeners)[key].add(config);
+      this._listeners[key].add(config);
     });
 
     _classPrivateFieldGet(this, _emitListener).call(this, this.docs, config, 'initialized');
 
     return () => {
       keys.forEach(key => {
-        _classPrivateFieldGet(this, _listeners)[key].delete(config);
+        this._listeners[key].delete(config);
       });
     };
   }
 
 }
-
-var _listeners = new WeakMap();
 
 var _emitListener = new WeakMap();
 

@@ -5,11 +5,43 @@ import _filter from 'lodash/filter';
 import _isEqual from 'lodash/isEqual';
 import _find from 'lodash/find';
 import _cloneDeep from 'lodash/cloneDeep';
+import _isObjectLike from 'lodash/isObjectLike';
+import _isArray from 'lodash/isArray';
+import _uniq from 'lodash/uniq';
 import _remove from 'lodash/remove';
 import _differenceBy from 'lodash/differenceBy';
 
+const isArray = docs => {
+  if (!_isArray(docs)) {
+    throw new Error('Expected array as an argument');
+  }
+};
+
+const isObject = doc => {
+  if (!_isObjectLike(doc) || _isArray(doc)) {
+    throw new Error('Expected plain object as an argument');
+  }
+};
+
+const isWithId = doc => {
+  if (!doc.id) {
+    throw new Error('Doc should have "id"');
+  }
+};
+
+const isWithIds = docs => {
+  const withoutIds = _filter(docs, doc => !doc.id);
+
+  if (withoutIds.length) {
+    const message = `All docs should have "id". Please, check next docs: ${JSON.stringify(withoutIds)}`;
+
+    throw new Error(message);
+  }
+};
+
+
 class Collection {
-  #listeners;
+  _listeners;
   #emitListener;
   #triggerListeners;
 
@@ -18,7 +50,7 @@ class Collection {
     this.docs = [];
     this.schema = options.schema;
 
-    this.#listeners = {};
+    this._listeners = {};
 
     this.#emitListener = (updated_data, {next, options}, action) => {
       const all_docs = options && options.clustered_all ? new Cluster(this.docs) : this.docs;
@@ -28,40 +60,51 @@ class Collection {
     };
 
     this.#triggerListeners = (updated_data, action, keys) => {
-      const listenerKeys = keys || Object.keys(this.#listeners);
+      const listenerKeys = keys || Object.keys(this._listeners);
 
       listenerKeys.forEach(key => {
-        if (!this.#listeners[key]) return;
+        if (key === 'id') return;
+        if (!this._listeners[key]) return;
 
-        this.#listeners[key].forEach((config) => { this.#emitListener(updated_data, config, action) })
+        this._listeners[key].forEach((config) => { this.#emitListener(updated_data, config, action) })
       });
     }
   }
 
-  add(data){
-    const intersected = _intersectionWith(this.docs, [data], _isEqual);
+  add(doc){
+    isObject(doc);
+    isWithId(doc);
+
+    const intersected = _intersectionWith(this.docs, [doc], _isEqual);
 
     if (intersected.length) {
       throw new Error('Current object already present in this collection');
     }
 
-    this.docs = [...this.docs, data];
-    this.#triggerListeners(data, 'added');
+    this.docs = [...this.docs, doc];
+    this.#triggerListeners([doc], 'added');
 
-    return { all_docs: this.docs, status: "success", added: data };
+    return { all_docs: this.docs, status: "success", added_doc: doc };
   }
 
-  bulkAdd(data) {
-    const intersected = _intersectionWith(this.docs, data, _isEqual);
-    const uniq_data = _differenceBy(data, intersected, 'id');
+  bulkAdd(docs) {
+    isArray(docs);
+    isWithIds(docs);
 
-    this.docs = [...this.docs, ...uniq_data];
-    this.#triggerListeners(uniq_data, 'bulk added');
+    const intersected = _intersectionWith(this.docs, docs, _isEqual);
+    const uniq_docs = _differenceBy(docs, intersected, 'id');
+
+    const keys = [];
+
+    uniq_docs.forEach(doc => keys.push(...Object.keys(doc)));
+
+    this.docs = [...this.docs, ...uniq_docs];
+    this.#triggerListeners(uniq_docs, 'bulk added', _uniq(keys));
 
     return {
       all_docs: this.docs,
-      added: uniq_data,
-      status: uniq_data.length !== data.length ? 'added with warnings' : 'success'
+      added_docs: uniq_docs,
+      status: uniq_docs.length !== docs.length ? 'added with warnings' : 'success'
     };
   }
 
@@ -81,64 +124,100 @@ class Collection {
     return _find(this.docs, { id })
   }
 
-  where(options) {
-    const docs = _filter(this.docs, options);
+  where(filter) {
+    const docs = _filter(this.docs, filter);
 
-    return new Cluster(docs, options);
+    return new Cluster(docs, filter);
   }
 
-  update(query, data) {
-    const field = _find(this.docs, query);
+  update(updated_fields) {
+    isObject(updated_fields);
+    isWithId(updated_fields);
 
-    if (!field) {
+    const doc = _find(this.docs, doc => doc.id === updated_fields.id);
+
+    if (!doc) {
       throw new Error('Current object is not in this collection');
     }
 
-    const docs =_filter( this.docs, doc => doc.id !== field.id);
-    const updatedField = { ...field, ...data};
+    const docs =_filter(this.docs, d => d.id !== doc.id);
 
-    this.docs = [...docs, updatedField];
-    this.#triggerListeners(data, Object.keys(data));
+    const updated_doc = { ...doc, ...updated_fields};
 
-    return {
-      docs: this.docs,
-      updated: updatedField,
-      old: field
-    };
-  }
-
-  bulkUpdate(data) {
-    this.docs  = this.docs.map(doc => ({...doc, data}));
-    this.#triggerListeners(data);
+    this.docs = [...docs, updated_doc];
+    this.#triggerListeners([updated_doc], 'updated', Object.keys(updated_fields));
 
     return {
-      docs: this.docs,
+      all_docs: this.docs,
+      updated_doc,
+      old_doc: doc,
       status: 'success'
     };
   }
 
-  upsert(item) {
-    const docs = _filter(this.docs, doc => doc.id !== item.id);
+  bulkUpdate(docs) {
+    isArray(docs);
+    isWithIds(docs);
 
-    this.docs = [...docs, item];
-    this.#triggerListeners(item);
+    const itemIds = docs.map(item => item.id);
+
+    const keys = [];
+    const clonedDocs = _cloneDeep(docs);
+    const docs_for_update = _remove(this.docs, doc => !itemIds.includes(doc.id));
+    const updated_docs = docs_for_update.map(doc => {
+      const update = _remove(clonedDocs, d => d.id === doc.id);
+
+      keys.push(...Object.keys(update));
+
+      return { ...doc, ...update}
+    });
+
+    this.docs  = this.docs.map(doc => ({...doc, docs}));
+    this.#triggerListeners(updated_docs, 'bulk updated', _uniq(keys));
 
     return {
-      docs: this.docs,
-      upserted: item
+      all_docs: this.docs,
+      updated_docs: updated_docs,
+      status: 'success'
     };
   }
 
-  bulkUpsert(items) {
-    const itemIds = items.map(item => item.id);
-    const docs = _filter(this.docs,doc => !itemIds.includes(doc.id));
+  upsert(doc) {
+    isObject(doc);
+    isWithId(doc);
 
-    this.docs = [...docs, ...items];
-    this.#triggerListeners(items);
+    const initialItem = _find(this.docs, d => d.id === doc.id);
+    const docs = _filter(this.docs, d => d.id !== doc.id);
+
+    this.docs = [...docs, { ...initialItem, ...doc }];
+    this.#triggerListeners([{ ...initialItem, ...doc }], 'added or updated', Object.keys(doc));
 
     return {
-      docs: this.docs,
-      upserted: items
+      all_docs: this.docs,
+      upserted: { ...initialItem, ...doc },
+      status: 'success'
+    };
+  }
+
+  bulkUpsert(docs) {
+    isArray(docs);
+    isWithIds(docs);
+
+    const itemIds = docs.map(item => item.id);
+
+    const keys = [];
+
+    docs.forEach(item => { keys.push(...Object.keys(item)); });
+
+    const unchanged_docs = _filter(this.docs,doc => !itemIds.includes(doc.id));
+
+    this.docs = [...unchanged_docs, ...docs];
+    this.#triggerListeners(docs, 'added or updated', _uniq(keys));
+
+    return {
+      all_docs: this.docs,
+      upserted: docs,
+      status: 'success'
     };
   }
 
@@ -182,15 +261,15 @@ class Collection {
     const config = { next, options };
 
     keys.forEach(key => {
-      this.#listeners[key] = this.#listeners[key] || new Set([]);
-      this.#listeners[key].add(config);
+      this._listeners[key] = this._listeners[key] || new Set([]);
+      this._listeners[key].add(config);
     });
 
     this.#emitListener(this.docs, config, 'initialized');
 
     return () => {
       keys.forEach(key => {
-        this.#listeners[key].delete(config)
+        this._listeners[key].delete(config)
       })
     }
   }
