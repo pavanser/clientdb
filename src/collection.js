@@ -52,21 +52,21 @@ class Collection {
 
     this._listeners = {};
 
-    this.#emitListener = (updated_data, {next, options}, action) => {
+    this.#emitListener = (changes, {next, options}, action) => {
       const all_docs = options && options.clustered_all ? new Cluster(this.docs) : this.docs;
-      const changes = options && options.clustered_updated ? new Cluster(updated_data) : updated_data;
+      const changes_entity = options && options.clustered_changes ? new Cluster(changes) : changes;
 
-      next({ all_docs, changes, action })
+      next({ all_docs, changes: changes_entity, action })
     };
 
-    this.#triggerListeners = (updated_data, action, keys) => {
+    this.#triggerListeners = (changes, action, keys) => {
       const listenerKeys = keys || Object.keys(this._listeners);
 
       listenerKeys.forEach(key => {
         if (key === 'id') return;
         if (!this._listeners[key]) return;
 
-        this._listeners[key].forEach((config) => { this.#emitListener(updated_data, config, action) })
+        this._listeners[key].forEach((config) => { this.#emitListener(changes, config, action) })
       });
     }
   }
@@ -162,22 +162,33 @@ class Collection {
     const itemIds = docs.map(item => item.id);
 
     const keys = [];
-    const clonedDocs = _cloneDeep(docs);
-    const docs_for_update = _remove(this.docs, doc => !itemIds.includes(doc.id));
+    const docs_for_update = _remove(this.docs, doc => itemIds.includes(doc.id));
+    const incomingDocs = _cloneDeep(docs);
     const updated_docs = docs_for_update.map(doc => {
-      const update = _remove(clonedDocs, d => d.id === doc.id);
+      const update = _remove(incomingDocs, d => d.id === doc.id);
 
-      keys.push(...Object.keys(update));
+      keys.push(...Object.keys(update[0]));
 
-      return { ...doc, ...update}
+      return { ...doc, ...update[0]}
     });
 
-    this.docs  = this.docs.map(doc => ({...doc, docs}));
+    this.docs = [...this.docs, ...updated_docs];
     this.#triggerListeners(updated_docs, 'bulk updated', _uniq(keys));
+
+    if (docs_for_update.length !== itemIds.length) {
+      return {
+        all_docs: this.docs,
+        updated_docs: updated_docs,
+        old_docs: docs_for_update,
+        passed_data: incomingDocs,
+        status: 'Not existed docs were not updated'
+      };
+    }
 
     return {
       all_docs: this.docs,
       updated_docs: updated_docs,
+      old_docs: docs_for_update,
       status: 'success'
     };
   }
@@ -194,7 +205,7 @@ class Collection {
 
     return {
       all_docs: this.docs,
-      upserted: { ...initialItem, ...doc },
+      upserted_doc: { ...initialItem, ...doc },
       status: 'success'
     };
   }
@@ -216,7 +227,7 @@ class Collection {
 
     return {
       all_docs: this.docs,
-      upserted: docs,
+      upserted_docs: docs,
       status: 'success'
     };
   }

@@ -262,8 +262,8 @@ describe('UPSERT works', () => {
     expect(answer).toHaveProperty('status');
     expect(answer.status).toBe('success');
 
-    expect(answer).toHaveProperty('upserted');
-    expect(answer.upserted).toStrictEqual(testItem);
+    expect(answer).toHaveProperty('upserted_doc');
+    expect(answer.upserted_doc).toStrictEqual(testItem);
 
     expect(answer).toHaveProperty('all_docs');
     expect(answer.all_docs).toStrictEqual(DB.instance.docs);
@@ -299,8 +299,8 @@ describe('UPSERT works', () => {
     expect(answer).toHaveProperty('status');
     expect(answer.status).toBe('success');
 
-    expect(answer).toHaveProperty('upserted');
-    expect(answer.upserted).toStrictEqual({ id: '5', title: 'Test 5', sub_info: NEW_SUB_INFO });
+    expect(answer).toHaveProperty('upserted_doc');
+    expect(answer.upserted_doc).toStrictEqual({ id: '5', title: 'Test 5', sub_info: NEW_SUB_INFO });
 
     expect(answer).toHaveProperty('all_docs');
     expect(answer.all_docs).toStrictEqual(DB.instance.docs);
@@ -353,8 +353,8 @@ describe('BULK UPSERT works', () => {
     expect(answer).toHaveProperty('status');
     expect(answer.status).toBe('success');
 
-    expect(answer).toHaveProperty('upserted');
-    expect(answer.upserted).toStrictEqual(FEW_NEW_ITEMS);
+    expect(answer).toHaveProperty('upserted_docs');
+    expect(answer.upserted_docs).toStrictEqual(FEW_NEW_ITEMS);
 
     expect(answer).toHaveProperty('all_docs');
     expect(answer.all_docs).toStrictEqual(DB.instance.docs);
@@ -387,8 +387,8 @@ describe('BULK UPSERT works', () => {
     expect(answer).toHaveProperty('status');
     expect(answer.status).toBe('success');
 
-    expect(answer).toHaveProperty('upserted');
-    expect(answer.upserted).toStrictEqual(clonedFewItems);
+    expect(answer).toHaveProperty('upserted_docs');
+    expect(answer.upserted_docs).toStrictEqual(clonedFewItems);
 
     expect(answer).toHaveProperty('all_docs');
     expect(answer.all_docs).toStrictEqual(DB.instance.docs);
@@ -417,7 +417,7 @@ describe('UPDATE works', () => {
   test('Should UPDATE existed ONE item', () => {
     const docs = _cloneDeep(DB.instance.docs);
     const FIRST_ITEM = docs[0];
-
+    const OLD_FIRST_ITEM = _cloneDeep(docs[0]);
     FIRST_ITEM.title = 'Updated title';
 
     const EXPECTED_DATA_BEFORE_UPDATE = {
@@ -438,6 +438,13 @@ describe('UPDATE works', () => {
     LISTENERS_CONFIG.data_before = EXPECTED_DATA_BEFORE_UPDATE;
 
     const answer = checkMethodListenersWork(LISTENERS_CONFIG);
+
+    hasProperties(answer, 'status', 'all_docs', 'updated_doc', 'old_doc');
+
+    expect(answer.status).toBe('success');
+    expect(answer.old_doc).toStrictEqual(OLD_FIRST_ITEM);
+    expect(answer.updated_doc).toStrictEqual(FIRST_ITEM);
+    expect(answer.all_docs).toStrictEqual(DB.instance.docs);
   });
 
   test('Should NOT UPDATE if not exist', () => {
@@ -461,7 +468,7 @@ describe('BULK UPDATE works', () => {
 
   const LISTENERS_CONFIG = initListenersConfig(
     'bulkUpdate',
-    FEW_NEW_ITEMS,
+    [],
     BULK_UPDATE_TEST_LISTENER,
     BULK_UPDATE_SECOND_TEST_LISTENER,
     BULK_UPDATE_ONCE_TRIGGERED_LISTENER,
@@ -471,6 +478,70 @@ describe('BULK UPDATE works', () => {
 
   test('Should have correct argument', () => {
     testIsCorrect('bulkUpdate', expectedArrayError)
+  });
+
+  test('Should UPDATE existed items', () => {
+    docs = _cloneDeep(DB.instance.docs);
+    const BULK_UPDATED_ITEMS = [{ id: '2', title: 'Updated test 2' }, { id: '3', title: 'Updated test 3' }];
+    const OLD_UPDATED_ITEMS = [{ id: '2', title: 'Test 2' }, { id: '3', title: 'Test 3' }];
+
+    const EXPECTED_DATA_AFTER_UPDATE = {
+      all_docs: [...docs.slice(2), ...BULK_UPDATED_ITEMS],
+      changes: BULK_UPDATED_ITEMS,
+      action: 'bulk updated'
+    };
+
+    const EXPECTED_DATA_BEFORE_UPDATE = {
+      all_docs: DB.instance.docs,
+      changes: DB.instance.docs,
+      action: 'initialized'
+    };
+
+    LISTENERS_CONFIG.data = BULK_UPDATED_ITEMS;
+    LISTENERS_CONFIG.data_after = EXPECTED_DATA_AFTER_UPDATE;
+    LISTENERS_CONFIG.data_before = EXPECTED_DATA_BEFORE_UPDATE;
+
+    const answer = checkMethodListenersWork(LISTENERS_CONFIG);
+
+    hasProperties(answer, 'status', 'all_docs', 'updated_docs', 'old_docs');
+
+    expect(answer.status).toBe('success');
+    expect(answer.old_docs).toStrictEqual(OLD_UPDATED_ITEMS);
+    expect(answer.updated_docs).toStrictEqual(BULK_UPDATED_ITEMS);
+    expect(answer.all_docs).toStrictEqual(DB.instance.docs);
+  });
+
+  test('Should UPDATE ONLY existed items', () => {
+    const docs = _cloneDeep(DB.instance.docs);
+    const BULK_UPDATED_ITEMS = [{ id: '2', title: 'Test 2' }, { id: '10', title: 'Not existed' }];
+
+    const EXPECTED_DATA_BEFORE_UPDATE = {
+      all_docs: DB.instance.docs,
+      changes: DB.instance.docs,
+      action: 'initialized'
+    };
+
+    const EXPECTED_DATA_AFTER_UPDATE = {
+      all_docs: [...docs.slice(0, docs.length - 2), docs[docs.length - 1], { id: '2', title: 'Test 2' }],
+      changes: [{ id: '2', title: 'Test 2' }],
+      action: 'bulk updated'
+    };
+
+    LISTENERS_CONFIG.data = BULK_UPDATED_ITEMS;
+    LISTENERS_CONFIG.first_listener.calls_count = 3;
+    LISTENERS_CONFIG.first_listener.start_index = 2;
+    LISTENERS_CONFIG.data_after = _cloneDeep(EXPECTED_DATA_AFTER_UPDATE);
+    LISTENERS_CONFIG.data_before = EXPECTED_DATA_BEFORE_UPDATE;
+
+    const answer = checkMethodListenersWork(LISTENERS_CONFIG, false);
+
+    hasProperties(answer, 'status', 'all_docs', 'updated_docs', 'old_docs', 'passed_data');
+
+    expect(answer.status).toBe('Not existed docs were not updated');
+    expect(answer.old_docs).toStrictEqual([{ id: '2', title: 'Updated test 2' }]);
+    expect(answer.updated_docs).toStrictEqual([{ id: '2', title: 'Test 2' }]);
+    expect(answer.passed_data).toStrictEqual([{ id: '10', title: 'Not existed' }]);
+    expect(answer.all_docs).toStrictEqual(DB.instance.docs);
   });
 });
 
@@ -514,7 +585,7 @@ describe('DELETE works', () => {
     };
 
     const EXPECTED_DATA_AFTER_DELETE = {
-      all_docs: docs.slice(1),
+      all_docs: docs.slice(0, docs.length - 1),
       changes: [{ id: '2', title: 'Test 2' }],
       action: 'deleted'
     };
@@ -544,6 +615,8 @@ describe('DELETE works', () => {
 
   test('Should delete all docs by IDs at arguments', () => {
     const docs = _cloneDeep(DB.instance.docs);
+    const [FOURTH, ...RESULT] = docs;
+    const THIRD = RESULT[RESULT.length - 1]
     const EXPECTED_DATA_BEFORE_DELETE = {
       all_docs: initialDocs,
       changes: initialDocs,
@@ -551,8 +624,8 @@ describe('DELETE works', () => {
     };
 
     const EXPECTED_DATA_AFTER_DELETE = {
-      all_docs: docs.slice(2),
-      changes: [{ id: "3", title: "Test 3" }, { id: "4", title: "Fourth Test 4" }],
+      all_docs: RESULT.slice(0, RESULT.length - 1),
+      changes: [FOURTH, THIRD],
       action: 'deleted'
     };
 
@@ -569,7 +642,7 @@ describe('DELETE works', () => {
     hasProperties(answer, 'status', 'removed', 'all_docs');
 
     expect(answer.status).toBe('success');
-    expect(answer.removed).toStrictEqual([{ id: '3', title: 'Test 3' }, { id: '4', title: 'Fourth Test 4' }]);
+    expect(answer.removed).toStrictEqual([FOURTH, THIRD]);
     expect(answer.all_docs).toStrictEqual(DB.instance.docs);
   });
 
@@ -653,5 +726,56 @@ describe('SUBSCRIBE works', () => {
 
     expect(SUBSCRIBER.mock.calls.length).toBe(1);
     expect(DB.instance._listeners.title.size).toBe(listeners.title.size - 1);
+  });
+
+  test('Should return all_docs as instance of Cluster when clustered_all TRUE', () => {
+    const TEST_LISTENER = jest.fn();
+
+    DB.instance.subscribe({
+      next: data => TEST_LISTENER(data),
+      keys: ['title'],
+      options: {
+        clustered_all: true
+      }
+    });
+
+    DB.instance.add({ id: '10', title: 'Test 10' });
+
+    expect(TEST_LISTENER.mock.calls[1][0].all_docs).toBeInstanceOf(Cluster)
+  });
+
+  test('Should return changes as instance of Cluster when clustered_changes TRUE', () => {
+    const TEST_LISTENER = jest.fn();
+
+    DB.instance.subscribe({
+      next: data => TEST_LISTENER(data),
+      keys: ['title'],
+      options: {
+        clustered_changes: true
+      }
+    });
+
+    DB.instance.add({ id: '11', title: 'Test 11' });
+
+    expect(TEST_LISTENER.mock.calls[1][0].changes).toBeInstanceOf(Cluster)
+  });
+
+  test('Should Not throw error if listeners key isn\'t found', () => {
+    const TEST_LISTENER = jest.fn();
+
+    DB.instance.subscribe({
+      next: data => TEST_LISTENER(data),
+      keys: ['title'],
+      options: {
+        clustered_changes: true
+      }
+    });
+
+    function withNotExistedListenersKey () {
+      DB.instance.update({ id: '11', title: 'Test 11', not_exist_key: true });
+    }
+
+
+    expect(withNotExistedListenersKey).not.toThrow()
   })
 });
