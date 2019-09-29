@@ -6,9 +6,9 @@ This package gives you possibility to create your own client database and work w
 All what yHERE.createCollection('some_collection_name');
 
 ```
- npm i @werkin/clientdb 
+ npm i @pavanser/clientdb 
  // or
- yarn add @werkin/clientdb
+ yarn add @pavanser/clientdb
 ```
 
 #### Collections:

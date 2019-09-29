@@ -85,28 +85,28 @@ class Collection {
     this.schema = options.schema;
     this._listeners = {};
 
-    _classPrivateFieldSet(this, _emitListener, (updated_data, _ref, action) => {
+    _classPrivateFieldSet(this, _emitListener, (changes, _ref, action) => {
       var {
         next,
         options
       } = _ref;
       var all_docs = options && options.clustered_all ? new _cluster.default(this.docs) : this.docs;
-      var changes = options && options.clustered_updated ? new _cluster.default(updated_data) : updated_data;
+      var changes_entity = options && options.clustered_changes ? new _cluster.default(changes) : changes;
       next({
         all_docs,
-        changes,
+        changes: changes_entity,
         action
       });
     });
 
-    _classPrivateFieldSet(this, _triggerListeners, (updated_data, action, keys) => {
+    _classPrivateFieldSet(this, _triggerListeners, (changes, action, keys) => {
       var listenerKeys = keys || Object.keys(this._listeners);
       listenerKeys.forEach(key => {
         if (key === 'id') return;
         if (!this._listeners[key]) return;
 
         this._listeners[key].forEach(config => {
-          _classPrivateFieldGet(this, _emitListener).call(this, updated_data, config, action);
+          _classPrivateFieldGet(this, _emitListener).call(this, changes, config, action);
         });
       });
     });
@@ -203,22 +203,31 @@ class Collection {
     isWithIds(docs);
     var itemIds = docs.map(item => item.id);
     var keys = [];
-    var clonedDocs = (0, _cloneDeep2.default)(docs);
-    var docs_for_update = (0, _remove2.default)(this.docs, doc => !itemIds.includes(doc.id));
+    var docs_for_update = (0, _remove2.default)(this.docs, doc => itemIds.includes(doc.id));
+    var incomingDocs = (0, _cloneDeep2.default)(docs);
     var updated_docs = docs_for_update.map(doc => {
-      var update = (0, _remove2.default)(clonedDocs, d => d.id === doc.id);
-      keys.push(...Object.keys(update));
-      return _objectSpread({}, doc, {}, update);
+      var update = (0, _remove2.default)(incomingDocs, d => d.id === doc.id);
+      keys.push(...Object.keys(update[0]));
+      return _objectSpread({}, doc, {}, update[0]);
     });
-    this.docs = this.docs.map(doc => _objectSpread({}, doc, {
-      docs
-    }));
+    this.docs = [...this.docs, ...updated_docs];
 
     _classPrivateFieldGet(this, _triggerListeners).call(this, updated_docs, 'bulk updated', (0, _uniq2.default)(keys));
+
+    if (docs_for_update.length !== itemIds.length) {
+      return {
+        all_docs: this.docs,
+        updated_docs: updated_docs,
+        old_docs: docs_for_update,
+        passed_data: incomingDocs,
+        status: 'Not existed docs were not updated'
+      };
+    }
 
     return {
       all_docs: this.docs,
       updated_docs: updated_docs,
+      old_docs: docs_for_update,
       status: 'success'
     };
   }
@@ -234,7 +243,7 @@ class Collection {
 
     return {
       all_docs: this.docs,
-      upserted: _objectSpread({}, initialItem, {}, doc),
+      upserted_doc: _objectSpread({}, initialItem, {}, doc),
       status: 'success'
     };
   }
@@ -254,7 +263,7 @@ class Collection {
 
     return {
       all_docs: this.docs,
-      upserted: docs,
+      upserted_docs: docs,
       status: 'success'
     };
   }
