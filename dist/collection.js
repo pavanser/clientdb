@@ -277,16 +277,14 @@ class Collection {
       throw new Error('This method required at least 1 id as argument.');
     }
 
-    var docs = (0, _cloneDeep2.default)(this.docs);
-    var removed = (0, _remove2.default)(docs, doc => ids.includes(doc.id));
+    var removed = (0, _remove2.default)(this.docs, doc => ids.includes(doc.id));
     var removedIds = removed.map(doc => doc.id);
     var notFoundIds = (0, _filter2.default)(ids, id => !removedIds.includes(id)).join(', ');
-    this.docs = docs;
-    removed.length && _classPrivateFieldGet(this, _triggerListeners).call(this, removed, 'deleted');
+    removed.length && _classPrivateFieldGet(this, _triggerListeners).call(this, removed, 'deleted', Object.keys(removed[0]));
     return {
       status: removed.length === ids.length ? 'success' : "Not found doc with id".concat(notFoundIds.length > 1 ? 's' : '', " ").concat(notFoundIds),
       removed,
-      all_docs: docs
+      all_docs: this.docs
     };
   }
 

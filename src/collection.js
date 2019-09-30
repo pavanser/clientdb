@@ -237,19 +237,16 @@ class Collection {
       throw new Error('This method required at least 1 id as argument.')
     }
 
-    const docs = _cloneDeep(this.docs);
-    const removed = _remove(docs, doc => ids.includes(doc.id));
+    const removed = _remove(this.docs, doc => ids.includes(doc.id));
     const removedIds = removed.map(doc => doc.id);
     const notFoundIds = _filter(ids, id => !removedIds.includes(id)).join(', ');
 
-    this.docs = docs;
-
-    removed.length && this.#triggerListeners(removed, 'deleted');
+    removed.length && this.#triggerListeners(removed, 'deleted', Object.keys(removed[0]));
 
     return {
       status: removed.length === ids.length ? 'success' : `Not found doc with id${notFoundIds.length > 1 ? 's' : ''} ${notFoundIds}`,
       removed,
-      all_docs: docs
+      all_docs: this.docs
     }
   }
 

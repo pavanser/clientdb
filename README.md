@@ -133,10 +133,9 @@ But some times you need not only get all docs but sort or limit them. So you can
 ```js
 YOUR_DB_NAME_HERE.some_collection_name.getAll();
 ```
-These methods are start of chain. But if you want to finish it use `exec()`. It return data.
 
 Also you may want take some filtered data, you can use `where` method got this.
-As argument you coud set an object or filter function which shoud return `true` or `false`.
+As argument you coud set an object or filter function which should return `true` or `false`.
 ```js
 YOUR_DB_NAME_HERE.some_collection_name.where('filter options here, object with required fields or filter function');
 ```
@@ -189,16 +188,25 @@ the cluster, which you can sort offset or limit; Then you will need to execute i
 Cluster instance have next methods.
 
 - sort - this method is sorting data by fields at the array. At the second argument ( this is optional ) you could describe direction of sorting `desc` or `asc` for fields one by one;
-- limit - this method will return only number of arguments according with a didgit at the arguments.
-- offset - this is helper for `limit` method and it takes in argument from where limit should count elements. It should be executed before `limit`.
+- limit - data will be chunked to tha pages with docs on each equal didgit at the method's argument.
+- offset - remove number of docs from start.
+- page - change current page.
+- exec - return data property value. Could be used as end of chain.
 
 ```js
 YOUR_DB_NAME_HERE
   .some_collection_name
   .getAll()
   .sort('name') // Will be sorted by name field
-   .limit(9) // Will be take 9 items from 0
-  .then( data => { /** ... */ } );
+  .limit(9); // Will be take 9 items from 0
+
+responseWithoutExec = {
+  data: [/** Docs sorted limited etc. */],
+  current_page: 0 /** Index of the page at the pages array */,
+  pages: [/** Array of pages */]
+
+  /** ...List of methods */
+}
 
 YOUR_DB_NAME_HERE
   .some_collection_name
@@ -207,5 +215,7 @@ YOUR_DB_NAME_HERE
   .sort('name') // Will be sorted by name field
   .limit(9) // Will be take 9 items from 8th
   .exec()
-  .then( data => { /** ... */ } );
+
+/** ...Response will be value of the data property */
+
 ```
