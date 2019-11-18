@@ -96,7 +96,7 @@ class Collection {
         all_docs,
         changes: changes_entity,
         action
-      });
+      }, this);
     });
 
     _classPrivateFieldSet(this, _triggerListeners, (changes, action, keys) => {
@@ -110,6 +110,10 @@ class Collection {
         });
       });
     });
+  }
+
+  get cluster() {
+    return new _cluster.default(this.docs);
   }
 
   add(doc) {
@@ -170,7 +174,7 @@ class Collection {
 
   where(filter) {
     var docs = (0, _filter2.default)(this.docs, filter);
-    return new _cluster.default(docs, filter);
+    return new _cluster.default(docs);
   }
 
   update(updated_fields) {

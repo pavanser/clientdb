@@ -56,7 +56,7 @@ class Collection {
       const all_docs = options && options.clustered_all ? new Cluster(this.docs) : this.docs;
       const changes_entity = options && options.clustered_changes ? new Cluster(changes) : changes;
 
-      next({ all_docs, changes: changes_entity, action })
+      next({ all_docs, changes: changes_entity, action }, this)
     };
 
     this.#triggerListeners = (changes, action, keys) => {
@@ -69,6 +69,10 @@ class Collection {
         this._listeners[key].forEach((config) => { this.#emitListener(changes, config, action) })
       });
     }
+  }
+
+  get cluster() {
+    return new Cluster(this.docs);
   }
 
   add(doc){
@@ -127,7 +131,7 @@ class Collection {
   where(filter) {
     const docs = _filter(this.docs, filter);
 
-    return new Cluster(docs, filter);
+    return new Cluster(docs);
   }
 
   update(updated_fields) {

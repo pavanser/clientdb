@@ -127,7 +127,7 @@ test('Has all collection methods', () => {
   hasProperties(
     DB.instance,
     'name', 'docs', 'schema', 'add', 'bulkAdd', 'getAll', 'getOne', 'getFirst', 'getById',
-    'update', 'bulkUpdate', 'upsert','bulkUpsert','delete','subscribe'
+    'update', 'bulkUpdate', 'upsert','bulkUpsert','delete','subscribe', 'cluster'
   );
 });
 
@@ -281,6 +281,12 @@ describe('GET ONE works', () => {
     expect(DB.instance.getOne(doc => doc.title.includes('Four'))).toStrictEqual(TEST_ITEM);
     expect(DB.instance.getOne({ id: '5' })).toEqual(undefined);
   })
+});
+
+describe('get CLUSTER works', () => {
+  test('Result is instance of Cluster', () => {
+    expect(DB.instance.cluster).toBeInstanceOf(Cluster);
+  });
 });
 
 describe('GET FIRST works', () => {
@@ -712,8 +718,6 @@ describe('DELETE works', () => {
     const secondAnswer = checkMethodListenersWork(LISTENERS_CONFIG, false);
 
     expect(initialLength).toEqual(DB.instance.docs.length + 1);
-
-    console.log(DB.instance.docs)
 
     hasProperties(answer, 'status', 'removed', 'all_docs');
     hasProperties(secondAnswer, 'status', 'removed', 'all_docs');

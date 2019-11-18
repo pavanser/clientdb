@@ -1,5 +1,4 @@
 import _chunk from 'lodash/chunk';
-import _pick from 'lodash/pick';
 import orderBy from 'lodash/orderBy';
 import cloneDeep from 'lodash/cloneDeep';
 
